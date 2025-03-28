@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "anytools"
+version = "0.1.0"
+description = ""
+authors = ["bahamondex <oscar.bahamonde@oscarmartinbahamondemunoz@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+openai = {version = "^1.69.0", optional = true}
+groq = {version = "^0.20.0", optional = true}
+mistralai = {version = "^1.6.0"}
+pydantic = "^2.11.0"
+cachetools = "^5.5.2"
+
+[tool.poetry.extras]
+openai = ["openai"]
+groq = ["groq"]
+mistralai = ["mistralai"]
+all = ["openai", "groq", "mistralai"]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
