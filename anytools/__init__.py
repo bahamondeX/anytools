@@ -1,6 +1,6 @@
 from .mistralai import MistralAgent, MistralTool
 from .tool import Tool
-from .rag import Pinecone
+from .rag import RagTool
 from .utils import (
     asyncify,
     boid,
@@ -26,5 +26,5 @@ __all__ = [
     "ttl_cache",
     "boid",
     "merge_dicts",
-    "Pinecone",
+    "RagTool",
 ]
