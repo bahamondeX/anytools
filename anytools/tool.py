@@ -2,6 +2,7 @@ import typing as tp
 from abc import ABC, abstractmethod
 
 from pydantic import BaseModel
+from mistralai import ToolTypedDict
 
 from ._proxy import LazyProxy
 
@@ -12,7 +13,7 @@ class Tool(BaseModel, LazyProxy[T], ABC):
     """Base Tool class for all vendors tool framework implementations"""
 
     @classmethod
-    def tool_definition(cls):
+    def tool_definition(cls)->ToolTypedDict:
         return {
             "type": "function",
             "function": {
