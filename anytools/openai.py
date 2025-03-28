@@ -14,13 +14,11 @@ from abc import ABC
 
 import typing_extensions as tpe
 from openai import AsyncOpenAI
-from openai.types.chat.chat_completion_message_param import \
-    ChatCompletionMessageParam
-from openai.types.chat.chat_completion_tool_param import \
-    ChatCompletionToolParam
+from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
+from openai.types.chat.chat_completion_tool_param import ChatCompletionToolParam
 from pydantic import Field
 
-from .schema import Tool
+from .tool import Tool
 
 openaiModels: tpe.TypeAlias = tp.Literal[
     # Pricing per 1M tokens: Input • Output

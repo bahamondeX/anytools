@@ -7,8 +7,7 @@ import logging
 import time
 from dataclasses import asdict, dataclass, field
 from functools import partial, reduce, wraps
-from typing import (Any, Awaitable, Callable, Coroutine, Type, TypeVar, Union,
-                    cast)
+from typing import Any, Awaitable, Callable, Coroutine, Type, TypeVar, Union, cast
 from uuid import uuid4
 
 from cachetools import TTLCache, cached
@@ -323,3 +322,22 @@ def merge_dicts(*dicts: dict[str, T]) -> dict[str, T]:
     Merges multiple dictionaries into one.
     """
     return {k: v for d in dicts for k, v in d.items()}
+
+
+def _new_event_loop():
+    loop = asyncio.get_event_loop()
+    asyncio.set_event_loop(loop)
+    return loop
+
+
+def get_loop():
+    try:
+        loop = asyncio.get_running_loop()
+        if loop.is_running():
+            return loop
+        else:
+            loop.close()
+        return _new_event_loop()
+    except Exception as e:
+        logger.error("Event loop wasn't running %s", e)
+        return _new_event_loop()

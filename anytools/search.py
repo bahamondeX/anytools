@@ -1,7 +1,7 @@
 import sys
 import typing as tp
 import asyncio
-import logging
+from .utils import get_logger
 
 try:
     from selenium import webdriver
@@ -11,20 +11,18 @@ try:
     from selenium.webdriver.support.ui import WebDriverWait
     from selenium.webdriver.support import expected_conditions as EC
     from webdriver_manager.chrome import ChromeDriverManager
-    from pydantic import BaseModel, Field, validator  # type: ignore
+
 except ImportError:
     print(
         "Please install required libraries: `pip install selenium beautifulsoup4 pydantic webdriver-manager lxml`"
     )
     sys.exit(1)
 
-from anytools.tool import Tool
+from .tool import Tool
+from pydantic import BaseModel, Field, validator  # type: ignore
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+
+logger = get_logger(__name__)
 
 
 class WebSearchResult(BaseModel):
@@ -206,24 +204,4 @@ class WebSearchTool(Tool[webdriver.Chrome]):
         results = await asyncio.to_thread(_sync_run)
 
         for result in results:
-            yield result.model_dump_json()
-
-
-# Example usage
-async def main():
-    # Create a WebSearch tool instance
-    web_search = WebSearchTool(
-        query="Python programming best practices",
-        max_results=15,
-        pages=2,
-        country="US",
-        language="en",
-    )
-
-    # Async iteration over search results
-    async for result in web_search.run():
-        print(result)
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+            yield result.model_dump_json() + "\n\n"

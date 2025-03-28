@@ -14,12 +14,11 @@ from abc import ABC
 
 import typing_extensions as tpe
 from groq import AsyncGroq
-from groq.types.chat.chat_completion_message_param import \
-    ChatCompletionMessageParam
+from groq.types.chat.chat_completion_message_param import ChatCompletionMessageParam
 from groq.types.chat.chat_completion_tool_param import ChatCompletionToolParam
 from pydantic import Field
 
-from .schema import Tool
+from .tool import Tool
 
 GroqModels: tpe.TypeAlias = tp.Literal[
     "llama-3.2-90b-vision-preview",  # $75 • $150

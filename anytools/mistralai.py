@@ -19,7 +19,7 @@ from pydantic import Field
 from typing_extensions import TypeAlias
 
 from .rag import Pinecone
-from .schema import Tool
+from .tool import Tool
 
 MistralModels: TypeAlias = Literal[
     "mistral-large-latest", "pixtral-large-latest", "codestral-latest"

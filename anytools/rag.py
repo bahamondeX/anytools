@@ -65,10 +65,10 @@ class Pinecone(LazyProxy[httpx.AsyncClient]):
     headers: dict[str, str] = field(
         default_factory=lambda: {
             "Content-Type": "application/json",
-            "Api-Key": os.environ["PINECONE_API_KEY"],
+            "Api-Key": os.environ.get("PINECONE_API_KEY"),
         }
-    )
-    base_url: str = field(default=os.environ["PINECONE_BASE_URL"])
+    )  # type: ignore
+    base_url: str = field(default=os.environ.get("PINECONE_BASE_URL"))  # type: ignore
 
     def __load__(self):
         return httpx.AsyncClient(base_url=self.base_url, headers=self.headers)
