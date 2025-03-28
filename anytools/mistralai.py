@@ -63,7 +63,6 @@ class MistralAgent(MistralTool):
         query_results = await self.db.query(
             vector=vector,
             namespace=self.namespace,
-            filter={"$eq": {"namespace": self.namespace}},
             topK=5,
             includeMetadata=True,
         )

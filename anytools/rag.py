@@ -76,7 +76,7 @@ class Pinecone(LazyProxy[httpx.AsyncClient]):
     async def upsert(self, **kwargs: Unpack[UpsertRequest]) -> UpsertResponse:
         client = self.__load__()
         response = await client.post(
-            f"{self.base_url}/vector/upsert", json=kwargs, headers=self.headers
+            f"{self.base_url}/vectors/upsert", json=kwargs, headers=self.headers
         )
         response.raise_for_status()
         return UpsertResponse(**response.json())
@@ -84,7 +84,7 @@ class Pinecone(LazyProxy[httpx.AsyncClient]):
     async def query(self, **kwargs: Unpack[QueryRequest]) -> QueryResponse:
         client = self.__load__()
         response = await client.post(
-            f"{self.base_url}/vector/query", json=kwargs, headers=self.headers
+            f"{self.base_url}/query", json=kwargs, headers=self.headers
         )
         response.raise_for_status()
         return QueryResponse(**response.json())
