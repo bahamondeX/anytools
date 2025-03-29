@@ -1,5 +1,7 @@
 import sys
 
+from anytools.proxy import LazyProxy
+
 try:
     import openai  # type: ignore
 except ImportError:
@@ -14,8 +16,10 @@ from abc import ABC
 
 import typing_extensions as tpe
 from openai import AsyncOpenAI
-from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
-from openai.types.chat.chat_completion_tool_param import ChatCompletionToolParam
+from openai.types.chat.chat_completion_message_param import \
+    ChatCompletionMessageParam
+from openai.types.chat.chat_completion_tool_param import \
+    ChatCompletionToolParam
 from pydantic import Field
 
 from .tool import Tool
@@ -30,7 +34,7 @@ openaiModels: tpe.TypeAlias = tp.Literal[
 ]
 
 
-class OpenAITool(Tool[AsyncOpenAI], ABC):
+class OpenAITool(Tool, LazyProxy[AsyncOpenAI], ABC):
     """
     An abstract base class representing a tool that can be used in chat completions.
 

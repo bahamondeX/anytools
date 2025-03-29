@@ -1,19 +1,17 @@
 import typing as tp
 from abc import ABC, abstractmethod
 
-from pydantic import BaseModel
 from mistralai import ToolTypedDict
-
-from ._proxy import LazyProxy
+from pydantic import BaseModel
 
 T = tp.TypeVar("T")
 
 
-class Tool(BaseModel, LazyProxy[T], ABC):
+class Tool(BaseModel, ABC):
     """Base Tool class for all vendors tool framework implementations"""
 
     @classmethod
-    def tool_definition(cls)->ToolTypedDict:
+    def tool_definition(cls) -> ToolTypedDict:
         return {
             "type": "function",
             "function": {
@@ -22,10 +20,6 @@ class Tool(BaseModel, LazyProxy[T], ABC):
                 "parameters": cls.model_json_schema().get("properties", {}),
             },
         }
-
-    @abstractmethod
-    def __load__(self) -> T:
-        raise NotImplementedError
 
     @abstractmethod
     def run(self) -> tp.AsyncGenerator[str, tp.Any]:

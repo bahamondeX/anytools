@@ -1,19 +1,12 @@
 from .mistralai import MistralAgent, MistralTool
-from .tool import Tool
+from .proxy import LazyProxy
 from .rag import RagTool
-from .utils import (
-    asyncify,
-    boid,
-    chunker,
-    get_key,
-    get_logger,
-    handle,
-    merge_dicts,
-    singleton,
-    ttl_cache,
-)
+from .tool import Tool
+from .utils import (asyncify, boid, chunker, get_key, get_logger, handle,
+                    merge_dicts, singleton, ttl_cache)
 
 __all__ = [
+    "LazyProxy",
     "Tool",
     "MistralAgent",
     "MistralTool",

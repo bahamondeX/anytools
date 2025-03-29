@@ -7,7 +7,8 @@ import logging
 import time
 from dataclasses import asdict, dataclass, field
 from functools import partial, reduce, wraps
-from typing import Any, Awaitable, Callable, Coroutine, Type, TypeVar, Union, cast
+from typing import (Any, Awaitable, Callable, Coroutine, Type, TypeVar, Union,
+                    cast)
 from uuid import uuid4
 
 from cachetools import TTLCache, cached
