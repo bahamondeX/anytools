@@ -1,3 +1,4 @@
+from .anthropic import AnthropicAgent, AnthropicTool, WebSearchTool
 from .mistralai import MistralAgent, MistralTool
 from .proxy import LazyProxy
 from .rag import RagTool
@@ -20,4 +21,7 @@ __all__ = [
     "boid",
     "merge_dicts",
     "RagTool",
+    "AnthropicTool",
+    "AnthropicAgent",
+    "WebSearchTool",
 ]

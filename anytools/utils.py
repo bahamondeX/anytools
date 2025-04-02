@@ -4,11 +4,11 @@ import asyncio
 import base64
 import json
 import logging
+import random
 import time
 from dataclasses import asdict, dataclass, field
 from functools import partial, reduce, wraps
-from typing import (Any, Awaitable, Callable, Coroutine, Type, TypeVar, Union,
-                    cast)
+from typing import Any, Awaitable, Callable, Coroutine, Type, TypeVar, Union, cast
 from uuid import uuid4
 
 from cachetools import TTLCache, cached
@@ -67,10 +67,10 @@ def ttl_cache(
         which determines how long the results are stored in the cache.
 
         Args:
-                        func (Callable[P, T]): The function to be decorated.
+                                        func (Callable[P, T]): The function to be decorated.
 
         Returns:
-                        Callable[P, T]: The wrapped function with caching applied.
+                                        Callable[P, T]: The wrapped function with caching applied.
         """
 
         @wraps(func)
@@ -88,7 +88,7 @@ def boid() -> str:
     Generates a URL-safe base64 encoded string from a UUID4.
 
     Returns:
-                    str: A URL-safe base64 encoded string representation of a UUID4, with padding removed.
+                                    str: A URL-safe base64 encoded string representation of a UUID4, with padding removed.
     """
     return base64.urlsafe_b64encode(uuid4().bytes).decode("utf-8").rstrip("=")
 
@@ -114,7 +114,7 @@ def get_logger(
     :return: Configured logger.
     """
     if name is None:
-        name = "🚀 IndieCloud 🚀"
+        name = "🚀 Trace >>"
     logger_ = logging.getLogger(name)
     logger_.setLevel(level)
     if not logger_.handlers:
@@ -289,10 +289,10 @@ def singleton(cls: Type[T]) -> Type[T]:
     Decorator that converts a class into a singleton.
 
     Args:
-                                                                    cls (Type[T]): The class to be converted into a singleton.
+                                                                                                                                    cls (Type[T]): The class to be converted into a singleton.
 
     Returns:
-                                                                    Type[T]: The singleton instance of the class.
+                                                                                                                                    Type[T]: The singleton instance of the class.
     """
     instances: dict[Type[T], T] = {}
 
@@ -342,3 +342,7 @@ def get_loop():
     except Exception as e:
         logger.error("Event loop wasn't running %s", e)
         return _new_event_loop()
+
+
+def get_random_int(starts: int = 8192, ends: int = 32768):
+    return random.randint(starts, ends)

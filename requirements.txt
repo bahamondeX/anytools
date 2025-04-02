@@ -1,0 +1,8 @@
+anthropic
+openai
+groq
+mistralai
+selenium
+webdriver-manager
+bs4
+lxml

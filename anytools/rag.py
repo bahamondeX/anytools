@@ -1,28 +1,34 @@
-import os
-from typing import Any, Dict, List, Literal, Optional, AsyncGenerator, Union
-from uuid import uuid4
 import asyncio
+import json
+import os
 from functools import lru_cache
+from hashlib import md5
+from typing import Any, AsyncGenerator, Dict, List, Literal, Optional, Union
+from uuid import uuid4
 
 import httpx
-from mistralai import Mistral
+from openai import AsyncOpenAI
 from pydantic import Field, field_validator
 from typing_extensions import NotRequired, Required, TypedDict, Unpack
 
 from anytools.proxy import LazyProxy
+
 from .tool import Tool
 from .utils import get_logger
 
 logger = get_logger(__name__)
+
 
 # TypedDict definitions
 class SparseValues(TypedDict, total=False):
     indices: Required[List[int]]
     values: Required[List[float]]
 
+
 class Metadata(TypedDict, total=False):
     content: Required[str | list[str]]
     namespace: Required[str]
+
 
 class Vector(TypedDict, total=False):
     id: Required[str]
@@ -30,18 +36,22 @@ class Vector(TypedDict, total=False):
     sparseValues: NotRequired[SparseValues]
     metadata: Required[Metadata]
 
+
 class QueryMatch(TypedDict, total=False):
     id: Required[str]
     score: Required[float]
     metadata: Required[Metadata]
     values: NotRequired[List[float]]
 
+
 class UpsertRequest(TypedDict, total=False):
     vectors: Required[List[Vector]]
     namespace: Required[str]
 
+
 class UpsertResponse(TypedDict, total=False):
     upsertedCount: Required[int]
+
 
 class QueryRequest(TypedDict, total=False):
     vector: Required[List[float]]
@@ -51,8 +61,10 @@ class QueryRequest(TypedDict, total=False):
     includeMetadata: Required[bool]
     includeValues: NotRequired[bool]
 
+
 class Usage(TypedDict):
     readUnits: Required[int]
+
 
 class QueryResponse(TypedDict):
     matches: Required[List[QueryMatch]]
@@ -83,87 +95,88 @@ class RagTool(Tool, LazyProxy[httpx.AsyncClient]):
         default="upsert",
         description="Action to perform: 'query' to search or 'upsert' to store.",
     )
-    
+
     # Optional configurations with defaults
     similarity_threshold: float = Field(
         default=0.75,
         description="Minimum similarity score threshold for query results (0.0-1.0).",
         ge=0.0,
-        le=1.0
+        le=1.0,
     )
-    
-    # Cache for clients
-    _mistral_client = None
-    _httpx_client = None
-    
+
     @field_validator("topK")
     @classmethod
-    def validate_top_k(cls, v:Union[int, None], info:Any):
+    def validate_top_k(cls, v: Union[int, None], info: Any):
         if info.data.get("action") == "query" and (v is None or v < 1 or v > 20):
             raise ValueError("topK must be between 1 and 20 for query actions")
         return v
-    
+
     @field_validator("content")
     @classmethod
-    def validate_content(cls, v:str):
+    def validate_content(cls, v: str):
         if not v or not v.strip():
             raise ValueError("Content cannot be empty")
         return v.strip()
 
     def __load__(self) -> httpx.AsyncClient:
         """Create or reuse cached httpx client with appropriate configuration"""
-        if RagTool._httpx_client is None:
-            RagTool._httpx_client = httpx.AsyncClient(
-                base_url=os.environ.get("PINECONE_BASE_URL", "").rstrip("/"),
-                headers={
-                    "Content-Type": "application/json",
-                    "Api-Key": os.environ.get("PINECONE_API_KEY", ""),
-                },
-                timeout=30.0,  # Increased timeout
-                limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
-                http2=True,  # Use HTTP/2 for better performance
-            )
-        return RagTool._httpx_client
-    
-    @lru_cache(maxsize=1)
-    def _get_mistral_client(self) -> Mistral:
-        """Get or create cached Mistral client"""
-        if RagTool._mistral_client is None:
-            RagTool._mistral_client = Mistral(api_key=os.environ.get("MISTRAL_API_KEY", ""))
-        return RagTool._mistral_client
+        return httpx.AsyncClient(
+            base_url=os.environ.get("PINECONE_BASE_URL", "").rstrip("/"),
+            headers={
+                "Content-Type": "application/json",
+                "Api-Key": os.environ.get("PINECONE_API_KEY", ""),
+            },
+            timeout=30.0,  # Increased timeout
+            limits=httpx.Limits(max_keepalive_connections=25, max_connections=50),
+            http2=True,  # Use HTTP/2 for better performance
+        )
 
-    async def embed(self, text: str) -> list[float]:
+    @lru_cache(maxsize=1)
+    def __load__openai__(self) -> AsyncOpenAI:
+        """Get or create cached OpenAI client"""
+        return AsyncOpenAI(
+            api_key=os.environ.get("MISTRAL_API_KEY", ""),
+            base_url="https://api.oscarbahamonde.cloud/v1",
+        )
+
+    async def embed(self) -> list[float]:
         """Generate embedding for text with error handling and retries"""
-        client = self._get_mistral_client()
+        client = self.__load__openai__()
         max_retries = 3
-        
+
         for attempt in range(max_retries):
             try:
-                response = await client.embeddings.create_async(
-                    model="mistral-embed", 
-                    inputs=text
+                response = await client.embeddings.create(
+                    model="nomic-text", input=self.content
                 )
                 embedding = response.data[0].embedding
                 assert isinstance(embedding, list)
                 return embedding
             except Exception as e:
                 if attempt == max_retries - 1:
-                    logger.error(f"Failed to generate embedding after {max_retries} attempts: {str(e)}")
+                    logger.error(
+                        f"Failed to generate embedding after {max_retries} attempts: {str(e)}"
+                    )
                     raise
-                logger.warning(f"Embedding attempt {attempt+1} failed: {str(e)}. Retrying...")
+                logger.warning(
+                    f"Embedding attempt {attempt+1} failed: {str(e)}. Retrying..."
+                )
                 await asyncio.sleep(1 * (attempt + 1))  # Exponential backoff
                 continue
         return []
-    
+
     async def upsert(self, **kwargs: Unpack[UpsertRequest]) -> UpsertResponse:
         """Upsert vectors with improved error handling"""
         client = self.__load__()
+        response = await client.post("/vectors/upsert", json=kwargs)
         try:
-            response = await client.post("/vector/upsert", json=kwargs)
             response.raise_for_status()
             return UpsertResponse(**response.json())
         except httpx.HTTPStatusError as e:
-            logger.error(f"Upsert HTTP error: {e.response.status_code} - {e.response.text}")
+            logger.error(response.text)
+            logger.error(
+                f"Upsert HTTP error: {e.response.status_code} - {e.response.text}"
+            )
             raise
         except httpx.RequestError as e:
             logger.error(f"Upsert request error: {str(e)}")
@@ -175,12 +188,14 @@ class RagTool(Tool, LazyProxy[httpx.AsyncClient]):
     async def query(self, **kwargs: Unpack[QueryRequest]) -> QueryResponse:
         """Query vectors with improved error handling"""
         client = self.__load__()
+        response = await client.post("/query", json=kwargs)
         try:
-            response = await client.post("/query", json=kwargs)
             response.raise_for_status()
             return QueryResponse(**response.json())
         except httpx.HTTPStatusError as e:
-            logger.error(f"Query HTTP error: {e.response.status_code} - {e.response.text}")
+            logger.error(
+                f"Query HTTP error: {e.response.status_code} - {e.response.text}"
+            )
             raise
         except httpx.RequestError as e:
             logger.error(f"Query request error: {str(e)}")
@@ -194,8 +209,7 @@ class RagTool(Tool, LazyProxy[httpx.AsyncClient]):
         try:
             if self.action == "upsert":
                 # Generate embedding and create vector
-                embedding = await self.embed(self.content)
-                
+                embedding = await self.embed()
                 upsert_request = UpsertRequest(
                     vectors=[
                         {
@@ -209,17 +223,15 @@ class RagTool(Tool, LazyProxy[httpx.AsyncClient]):
                     ],
                     namespace=self.namespace,
                 )
-                
+
                 response = await self.upsert(**upsert_request)
-                yield f"✅ Successfully stored {response['upsertedCount']} embedding in '{self.namespace}'.\n"
-                
+                yield f"data: {json.dumps(response)}"
             elif self.action == "query":
                 # Validate topK before proceeding
                 if not isinstance(self.topK, int) or self.topK < 1:
-                    raise ValueError("topK must be a positive integer for query operations")
-                
-                embedding = await self.embed(self.content)
-                
+                    return
+                embedding = await self.embed()
+
                 query_request = QueryRequest(
                     vector=embedding,
                     namespace=self.namespace,
@@ -227,32 +239,30 @@ class RagTool(Tool, LazyProxy[httpx.AsyncClient]):
                     includeMetadata=True,
                     includeValues=False,  # Save bandwidth by not returning vectors
                 )
-                
+
                 response = await self.query(**query_request)
-                
+
                 # Filter by similarity threshold
-                relevant_matches = [m for m in response["matches"] if m["score"] >= self.similarity_threshold]
-                
+                relevant_matches = [
+                    m
+                    for m in response["matches"]
+                    if m["score"] >= self.similarity_threshold
+                ]
+
                 if not relevant_matches:
-                    yield f"No relevant matches found in '{self.namespace}' above threshold {self.similarity_threshold}.\n"
+                    return
                 else:
-                    yield f"Found {len(relevant_matches)} relevant matches in '{self.namespace}':\n\n"
-                    
-                    for i, match in enumerate(relevant_matches, 1):
-                        content = match["metadata"]["content"]
-                        # Format as a readable numbered list with scores
-                        yield f"{i}. [Score: {match['score']:.4f}] {content}\n"
+                    for match in relevant_matches:
+                        yield f"data:{json.dumps(match)}\n\n"
             else:
-                raise ValueError(f"Invalid action '{self.action}'. Please choose 'query' or 'upsert'.")
-                
+                return
         except Exception as e:
             error_msg = f"Error during {self.action} operation: {str(e)}"
             logger.error(error_msg)
-            yield f"❌ {error_msg}"
-            
-    @classmethod
-    async def close_clients(cls):
-        """Properly close clients when shutting down"""
-        if cls._httpx_client is not None:
-            await cls._httpx_client.aclose()
-            cls._httpx_client = None
+            return
+
+    def __hash__(self):
+        # Create a hashable representation of the instance
+        hash_content = f"{self.content}:{self.namespace}:{self.action}:{self.topK}:{self.similarity_threshold}"
+        # Use md5 to generate a hash
+        return int(md5(hash_content.encode()).hexdigest(), 16) % (2**32)

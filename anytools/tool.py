@@ -1,5 +1,6 @@
 import typing as tp
 from abc import ABC, abstractmethod
+from hashlib import md5
 
 from mistralai import ToolTypedDict
 from pydantic import BaseModel
@@ -24,3 +25,6 @@ class Tool(BaseModel, ABC):
     @abstractmethod
     def run(self) -> tp.AsyncGenerator[str, tp.Any]:
         raise NotImplementedError
+
+    def __hash__(self):
+        return int(md5(self.model_dump_json().encode()).hexdigest(), 16) % (2**32)
