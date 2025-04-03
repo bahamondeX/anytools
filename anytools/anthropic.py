@@ -29,8 +29,6 @@ class AnthropicTool(Tool, LazyProxy[AsyncAnthropic], ABC):
     This class combines functionality from Pydantic's BaseModel, LazyProxy, and ABC to create
     a flexible and extensible tool structure for use with groq's chat completion API.
     """
-
-    @lru_cache(maxsize=1)
     def __load__(self):
         return AsyncAnthropic()
 
@@ -635,17 +633,6 @@ class AnthropicAgent(AnthropicTool):
     messages: list[MessageParam] = Field(default_factory=list)
     tools: list[ToolParam] = Field(default_factory=list)
     max_tokens: int = Field(default_factory=get_random_int)
-    _tool_classes_cache: tp.ClassVar[tp.Optional[dict[str, tp.Type[AnthropicTool]]]] = (
-        None  # Class variable for caching
-    )
-
-    @classmethod
-    def _get_subclasses(cls):
-        if cls._tool_classes_cache is None:
-            cls._tool_classes_cache = {
-                cls.__name__: cls for cls in AnthropicTool.__subclasses__()
-            }
-        return cls._tool_classes_cache
 
     async def run(self) -> tp.AsyncGenerator[str, None]:
         client = self.__load__()
@@ -663,7 +650,9 @@ class AnthropicAgent(AnthropicTool):
                 messages=self.messages,
                 max_tokens=self.max_tokens,
             ) as response_stream:
-                tool_classes = self._get_subclasses()
+                tool_classes = {
+                cls.__name__: cls for cls in AnthropicTool.__subclasses__()
+            }
 
                 async for raw_content_block in response_stream:
                     if raw_content_block.type == "content_block_stop":
