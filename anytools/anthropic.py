@@ -1,10 +1,15 @@
 import typing as tp
-import copy
 from abc import ABC, abstractmethod
 
 import typing_extensions as tpe
 from anthropic import AsyncAnthropic
-from anthropic.types import MessageParam, TextDelta, ToolParam, ToolUseBlock
+from anthropic.types import (
+    MessageParam,
+    TextDelta,
+    ToolParam,
+    ToolUseBlock,
+    ToolChoiceParam,
+)
 from pydantic import Field
 
 from .tool import Tool
@@ -41,6 +46,9 @@ class AnthropicAgent(AnthropicTool):
     messages: list[MessageParam] = Field(default_factory=list)
     tools: list[ToolParam] = Field(default_factory=list)
     max_tokens: int = Field(default_factory=get_random_int)
+    tool_choice: ToolChoiceParam = Field(
+        default={"type": "any", "disable_parallel_tool_use": False}
+    )
 
     async def run(self) -> tp.AsyncGenerator[str, None]:
         client = self.__load__()
@@ -48,7 +56,6 @@ class AnthropicAgent(AnthropicTool):
         # Use iterative approach instead of recursive
         processing_stack = [True]  # Start with processing the main request
         # Keep a copy of the original tools
-        original_tools = copy.deepcopy(self.tools)
         tool_classes = {cls.__name__: cls for cls in AnthropicTool.__subclasses__()}
         while processing_stack:
             processing_stack.pop()  # Process the current item
@@ -56,6 +63,7 @@ class AnthropicAgent(AnthropicTool):
             async with client.messages.stream(
                 model=self.model,
                 tools=self.tools,
+                tool_choice=self.tool_choice,
                 messages=self.messages,
                 max_tokens=self.max_tokens,
             ) as response_stream:
@@ -80,7 +88,7 @@ class AnthropicAgent(AnthropicTool):
 
                             content = "".join(content_chunks)
                             self.messages.append({"role": "user", "content": content})
-                            self.tools = []
+                            self.tool_choice = {"type": "none"}
                             # Add to processing stack instead of recursion
                             processing_stack.append(True)
                             break  # Break from current stream to handle the new item in stack
@@ -91,7 +99,3 @@ class AnthropicAgent(AnthropicTool):
                             and raw_content_block.delta.text
                         ):
                             yield raw_content_block.delta.text
-
-            # Restore original tools after processing a sub-request
-            if not processing_stack:
-                self.tools = original_tools
