@@ -1,8 +1,6 @@
 import asyncio
 import json
 import os
-from functools import lru_cache
-from hashlib import md5
 from typing import Any, AsyncGenerator, Dict, List, Literal, Optional, Union
 from uuid import uuid4
 
@@ -10,8 +8,6 @@ import httpx
 from openai import AsyncOpenAI
 from pydantic import Field, field_validator
 from typing_extensions import NotRequired, Required, TypedDict, Unpack
-
-from anytools.proxy import LazyProxy
 
 from .tool import Tool
 from .utils import get_logger
@@ -72,7 +68,12 @@ class QueryResponse(TypedDict):
     usage: Required[Usage]
 
 
-class RagTool(Tool, LazyProxy[httpx.AsyncClient]):
+class HttpTool(Tool[httpx.AsyncClient]):
+    def __load__(self):
+        return httpx.AsyncClient()
+
+
+class RagTool(HttpTool):
     """
     [MUST USE]
     Provides Retrieval Augmented Generation capabilities to the model for semantic memory.
@@ -127,15 +128,14 @@ class RagTool(Tool, LazyProxy[httpx.AsyncClient]):
                 "Api-Key": os.environ.get("PINECONE_API_KEY", ""),
             },
             timeout=30.0,  # Increased timeout
-            limits=httpx.Limits(max_keepalive_connections=25, max_connections=50),
+            limits=httpx.Limits(max_keepalive_connections=100, max_connections=1000),
             http2=True,  # Use HTTP/2 for better performance
         )
 
-    @lru_cache(maxsize=1)
     def __load__openai__(self) -> AsyncOpenAI:
         """Get or create cached OpenAI client"""
         return AsyncOpenAI(
-            api_key=os.environ.get("MISTRAL_API_KEY", ""),
+            api_key=os.environ.get("OPENAI_API_KEY", ""),
             base_url="https://api.oscarbahamonde.cloud/v1",
         )
 
@@ -225,7 +225,7 @@ class RagTool(Tool, LazyProxy[httpx.AsyncClient]):
                 )
 
                 response = await self.upsert(**upsert_request)
-                yield f"data: {json.dumps(response)}"
+                yield json.dumps(response)
             elif self.action == "query":
                 # Validate topK before proceeding
                 if not isinstance(self.topK, int) or self.topK < 1:
@@ -253,16 +253,10 @@ class RagTool(Tool, LazyProxy[httpx.AsyncClient]):
                     return
                 else:
                     for match in relevant_matches:
-                        yield f"data:{json.dumps(match)}\n\n"
+                        yield json.dumps(match)
             else:
                 return
         except Exception as e:
             error_msg = f"Error during {self.action} operation: {str(e)}"
             logger.error(error_msg)
             return
-
-    def __hash__(self):
-        # Create a hashable representation of the instance
-        hash_content = f"{self.content}:{self.namespace}:{self.action}:{self.topK}:{self.similarity_threshold}"
-        # Use md5 to generate a hash
-        return int(md5(hash_content.encode()).hexdigest(), 16) % (2**32)

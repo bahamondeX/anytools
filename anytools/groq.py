@@ -19,7 +19,6 @@ from groq.types.chat.chat_completion_message_param import \
 from groq.types.chat.chat_completion_tool_param import ChatCompletionToolParam
 from pydantic import Field
 
-from .proxy import LazyProxy
 from .tool import Tool
 
 GroqModels: tpe.TypeAlias = tp.Literal[
@@ -29,7 +28,7 @@ GroqModels: tpe.TypeAlias = tp.Literal[
 ]
 
 
-class GroqTool(Tool, LazyProxy[AsyncGroq], ABC):
+class GroqTool(Tool[AsyncGroq], ABC):
     """
     An abstract base class representing a tool that can be used in chat completions.
 

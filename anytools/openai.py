@@ -1,7 +1,5 @@
 import sys
 
-from anytools.proxy import LazyProxy
-
 try:
     import openai  # type: ignore
 except ImportError:
@@ -34,7 +32,7 @@ openaiModels: tpe.TypeAlias = tp.Literal[
 ]
 
 
-class OpenAITool(Tool, LazyProxy[AsyncOpenAI], ABC):
+class OpenAITool(Tool[AsyncOpenAI], ABC):
     """
     An abstract base class representing a tool that can be used in chat completions.
 

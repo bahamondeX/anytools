@@ -1,4 +1,4 @@
-from .anthropic import AnthropicAgent, AnthropicTool, WebSearchTool
+from .anthropic import AnthropicAgent, AnthropicTool
 from .mistralai import MistralAgent, MistralTool
 from .proxy import LazyProxy
 from .rag import RagTool
@@ -23,5 +23,4 @@ __all__ = [
     "RagTool",
     "AnthropicTool",
     "AnthropicAgent",
-    "WebSearchTool",
 ]
