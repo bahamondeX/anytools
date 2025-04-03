@@ -14,6 +14,7 @@ from pydantic import Field
 
 from .tool import Tool
 from .utils import get_logger, get_random_int
+from .rag import HttpTool
 
 logger = get_logger(__name__)
 
@@ -58,7 +59,10 @@ class AnthropicAgent(AnthropicTool):
             messages=self.messages,
             max_tokens=self.max_tokens,
         ) as response_stream:
-            tool_classes = {t.__name__: t for t in AnthropicTool.__subclasses__()}
+            tool_classes = {
+                t.__name__: t
+                for t in AnthropicTool.__subclasses__() + HttpTool.__subclasses__()
+            }
             async for raw_content_block in response_stream:
                 if raw_content_block.type == "content_block_stop":
                     if isinstance(raw_content_block.content_block, ToolUseBlock):
@@ -74,13 +78,10 @@ class AnthropicAgent(AnthropicTool):
                             yield chunk
                             content += chunk
                         self.messages.append({"role": "user", "content": content})
-                        self.tool_choice = {"type": "none"}
+                        self.tool_choice["type"] = "none"  # type: ignore
                         async for chunk in self.run():
                             yield chunk
-                        self.tool_choice = {
-                            "type": "any",
-                            "disable_parallel_tool_use": False,
-                        }
+                        self.tool_choice["type"] = "any"  # type: ignore
                 elif raw_content_block.type == "content_block_delta":
                     if isinstance(raw_content_block.delta, TextDelta):
                         if raw_content_block.delta.text:
