@@ -21,8 +21,10 @@ class LazyProxy(Generic[T], ABC):
         proxied = self.__get_proxied__()
         if isinstance(proxied, LazyProxy):
             return proxied  # pyright: ignore
-        return getattr(proxied, attr)
-
+        try:
+            return getattr(proxied, attr)
+        except AttributeError:
+            return getattr(self, attr)
     @override
     def __repr__(self) -> str:
         proxied = self.__get_proxied__()
