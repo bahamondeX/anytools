@@ -14,7 +14,6 @@ This project aims to improve **developer experience (DX)** and promote **Clean C
 - **Native integrations**: Direct support for `groq`, `openai`, and `mistralai`.
 - **JSON Schema support**: Ensures structured tool descriptions.
 - **Flexible loading mechanism**: Allows custom logic API providers.
-- **Built-in `WebSearch` tool**: A milestone example of integration.
 - **Streaming response support**: Asynchronous execution using `run`.
 
 ## Installation

@@ -5,7 +5,7 @@ from hashlib import md5
 from mistralai import ToolTypedDict
 from anthropic.types import ToolParam
 from pydantic import BaseModel
-from proxy import LazyProxy
+from .proxy import LazyProxy
 
 T = tp.TypeVar("T")
 

@@ -52,50 +52,38 @@ class AnthropicAgent(AnthropicTool):
 
     async def run(self) -> tp.AsyncGenerator[str, None]:
         client = self.__load__()
-
-        # Use iterative approach instead of recursive
-        processing_stack = [True]  # Start with processing the main request
-        # Keep a copy of the original tools
-        tool_classes = {cls.__name__: cls for cls in AnthropicTool.__subclasses__()}
-        while processing_stack:
-            processing_stack.pop()  # Process the current item
-
-            async with client.messages.stream(
-                model=self.model,
-                tools=self.tools,
-                tool_choice=self.tool_choice,
-                messages=self.messages,
-                max_tokens=self.max_tokens,
-            ) as response_stream:
-
-                async for raw_content_block in response_stream:
-                    if raw_content_block.type == "content_block_stop":
-                        if isinstance(raw_content_block.content_block, ToolUseBlock):
-                            logger.info(
-                                "Executing tool %s",
-                                raw_content_block.content_block.name,
-                            )
-                            # Use list to collect chunks for efficiency
-                            content_chunks: list[str] = []
-                            tool_name = raw_content_block.content_block.name
-                            tool_input = raw_content_block.content_block.input
-
-                            async for chunk in (
-                                tool_classes[tool_name].model_validate(tool_input).run()
-                            ):
-                                yield chunk
-                                content_chunks.append(chunk)
-
-                            content = "".join(content_chunks)
-                            self.messages.append({"role": "user", "content": content})
-                            self.tool_choice = {"type": "none"}
-                            # Add to processing stack instead of recursion
-                            processing_stack.append(True)
-                            break  # Break from current stream to handle the new item in stack
-
-                    elif raw_content_block.type == "content_block_delta":
-                        if (
-                            isinstance(raw_content_block.delta, TextDelta)
-                            and raw_content_block.delta.text
+        async with client.messages.stream(
+            model=self.model,
+            tools=self.tools,
+            messages=self.messages,
+            max_tokens=self.max_tokens,
+        ) as response_stream:
+            tool_classes = {t.__name__: t for t in AnthropicTool.__subclasses__()}
+            async for raw_content_block in response_stream:
+                if raw_content_block.type == "content_block_stop":
+                    if isinstance(raw_content_block.content_block, ToolUseBlock):
+                        logger.info(
+                            "Executing tool %s", raw_content_block.content_block.name
+                        )
+                        content = ""
+                        async for chunk in (
+                            tool_classes[raw_content_block.content_block.name]
+                            .model_validate(raw_content_block.content_block.input)
+                            .run()
                         ):
+                            yield chunk
+                            content += chunk
+                        self.messages.append({"role": "user", "content": content})
+                        self.tool_choice = {"type": "none"}
+                        async for chunk in self.run():
+                            yield chunk
+                        self.tool_choice = {
+                            "type": "any",
+                            "disable_parallel_tool_use": False,
+                        }
+                elif raw_content_block.type == "content_block_delta":
+                    if isinstance(raw_content_block.delta, TextDelta):
+                        if raw_content_block.delta.text:
                             yield raw_content_block.delta.text
+                else:
+                    continue
