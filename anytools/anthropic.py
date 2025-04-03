@@ -29,6 +29,7 @@ class AnthropicTool(Tool, LazyProxy[AsyncAnthropic], ABC):
     This class combines functionality from Pydantic's BaseModel, LazyProxy, and ABC to create
     a flexible and extensible tool structure for use with groq's chat completion API.
     """
+
     def __load__(self):
         return AsyncAnthropic()
 
@@ -545,12 +546,12 @@ class WebSearchTool(AnthropicTool):
                 # Execute JavaScript to get multiple metadata elements at once
                 metadata = driver.execute_script(
                     """
-                    return {
-                        title: document.title || "",
-                        metaDesc: document.querySelector('meta[name="description"]')?.content || "",
-                        ogDesc: document.querySelector('meta[property="og:description"]')?.content || ""
-                    }
-                """
+					return {
+						title: document.title || "",
+						metaDesc: document.querySelector('meta[name="description"]')?.content || "",
+						ogDesc: document.querySelector('meta[property="og:description"]')?.content || ""
+					}
+				"""
                 )
 
                 if metadata["title"]:
@@ -566,40 +567,40 @@ class WebSearchTool(AnthropicTool):
             try:
                 main_content = driver.execute_script(
                     """
-                    // Try to find main content container
-                    const selectors = [
-                        "main", "article", "#content", ".content", '[role="main"]',
-                        "section", ".main-content", ".post-content", ".entry-content",
-                        "#main", ".main", ".body", ".post", ".entry"
-                    ];
-                    
-                    // Try each selector
-                    for (const selector of selectors) {
-                        const elements = document.querySelectorAll(selector);
-                        for (const el of elements) {
-                            const text = el.textContent.trim();
-                            if (text && text.length > 200) {
-                                return text;
-                            }
-                        }
-                    }
-                    
-                    // Fallback to paragraphs if no main content found
-                    const paragraphs = document.querySelectorAll('p');
-                    let pContent = '';
-                    let count = 0;
-                    
-                    for (const p of paragraphs) {
-                        const text = p.textContent.trim();
-                        if (text && text.length > 30) {
-                            pContent += text + "\\n";
-                            count++;
-                            if (count >= 8) break; // Limit to 8 paragraphs
-                        }
-                    }
-                    
-                    return pContent || document.body.textContent.trim();
-                """
+					// Try to find main content container
+					const selectors = [
+						"main", "article", "#content", ".content", '[role="main"]',
+						"section", ".main-content", ".post-content", ".entry-content",
+						"#main", ".main", ".body", ".post", ".entry"
+					];
+					
+					// Try each selector
+					for (const selector of selectors) {
+						const elements = document.querySelectorAll(selector);
+						for (const el of elements) {
+							const text = el.textContent.trim();
+							if (text && text.length > 200) {
+								return text;
+							}
+						}
+					}
+					
+					// Fallback to paragraphs if no main content found
+					const paragraphs = document.querySelectorAll('p');
+					let pContent = '';
+					let count = 0;
+					
+					for (const p of paragraphs) {
+						const text = p.textContent.trim();
+						if (text && text.length > 30) {
+							pContent += text + "\\n";
+							count++;
+							if (count >= 8) break; // Limit to 8 paragraphs
+						}
+					}
+					
+					return pContent || document.body.textContent.trim();
+				"""
                 )
 
                 if main_content:
@@ -637,47 +638,68 @@ class AnthropicAgent(AnthropicTool):
     async def run(self) -> tp.AsyncGenerator[str, None]:
         client = self.__load__()
 
-        # Use iterative approach instead of recursive
-        processing_stack = [True]  # Start with processing the main request
-        original_tools = self.tools.copy()
+        # Create local copies of tools and messages to avoid modifying the properties directly
+        current_tools = list(self.tools)  # Create a copy
+        current_messages = list(self.messages)  # Create a copy
 
-        while processing_stack:
-            processing_stack.pop()  # Process the current item
+        # Use an iterative approach to handle multiple tool calls
+        pending_results = True
+
+        while pending_results:
+            pending_results = False  # Reset for this iteration
 
             async with client.messages.stream(
                 model=self.model,
-                tools=self.tools,
-                messages=self.messages,
+                tools=current_tools,
+                messages=current_messages,
                 max_tokens=self.max_tokens,
             ) as response_stream:
                 tool_classes = {
-                cls.__name__: cls for cls in AnthropicTool.__subclasses__()
-            }
+                    cls.__name__: cls for cls in AnthropicTool.__subclasses__()
+                }
 
                 async for raw_content_block in response_stream:
                     if raw_content_block.type == "content_block_stop":
                         if isinstance(raw_content_block.content_block, ToolUseBlock):
+                            # Found a tool call - will need another iteration
+                            pending_results = True
+
                             logger.info(
                                 "Executing tool %s",
                                 raw_content_block.content_block.name,
                             )
-                            # Use list to collect chunks for efficiency
+
                             content_chunks: list[str] = []
                             tool_name = raw_content_block.content_block.name
                             tool_input = raw_content_block.content_block.input
 
-                            async for chunk in (
-                                tool_classes[tool_name].model_validate(tool_input).run()
-                            ):
-                                yield chunk
-                                content_chunks.append(chunk)
+                            # Create a new tool instance
+                            try:
+                                tool_instance = tool_classes[tool_name].model_validate(
+                                    tool_input
+                                )
+                                async for chunk in tool_instance.run():
+                                    yield chunk
+                                    content_chunks.append(chunk)
 
-                            content = "".join(content_chunks)
-                            self.messages.append({"role": "user", "content": content})
-                            self.tools = []
-                            # Add to processing stack instead of recursion
-                            processing_stack.append(True)
-                            break  # Break from current stream to handle the new item in stack
+                                content = "".join(content_chunks)
+                                # Add to local copy only
+                                current_messages.append(
+                                    {"role": "user", "content": content}
+                                )
+                            except Exception as e:
+                                logger.error(
+                                    f"Error executing tool {tool_name}: {str(e)}"
+                                )
+                                current_messages.append(
+                                    {
+                                        "role": "user",
+                                        "content": f"Error executing tool: {str(e)}",
+                                    }
+                                )
+
+                            # Break from stream to start a new iteration with updated messages
+                            break
 
                     elif raw_content_block.type == "content_block_delta":
                         if (
@@ -686,6 +708,6 @@ class AnthropicAgent(AnthropicTool):
                         ):
                             yield raw_content_block.delta.text
 
-            # Restore original tools after processing a sub-request
-            if not processing_stack:
-                self.tools = original_tools
+        # After all processing is done, update the original messages property
+        # This avoids multiple modifications of the property during tool calls
+        self.messages = current_messages
