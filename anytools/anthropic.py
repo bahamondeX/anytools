@@ -19,9 +19,9 @@ from .rag import HttpTool
 logger = get_logger(__name__)
 
 AnthropicModels: tpe.TypeAlias = tp.Literal[
-    "claude-3-7-sonnet-20250219",  # $75 • $150
-    "claude-3-5-haiku-20241022",
-    "claude-3-haiku-20240307",
+    "claude-3-7-sonnet-20250219",  # $3 • $15 / 8192-64000
+    "claude-3-5-haiku-20241022",  # $0.8 • $4 / 8192
+    "claude-3-haiku-20240307",  # $0.25 • $1.25 / 4096
 ]
 
 logger = get_logger()

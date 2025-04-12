@@ -25,6 +25,8 @@ GroqModels: tpe.TypeAlias = tp.Literal[
     "llama-3.2-90b-vision-preview",  # $75 • $150
     "llama-3.3-70b-versatile",
     "deepseek-r1-distill-llama-70b",
+    "meta-llama/llama-4-maverick-17b-128e-instruct",
+    "meta-llama/llama-4-scout-17b-16e-instruct",
 ]
 
 
@@ -64,7 +66,7 @@ class GroqAgent(GroqTool):
             during the chat completion. Defaults to an empty list.
     """
 
-    model: GroqModels = Field(default="llama-3.3-70b-versatile")
+    model: GroqModels = Field(default="meta-llama/llama-4-maverick-17b-128e-instruct")
     messages: list[ChatCompletionMessageParam] = Field(default_factory=list)
     tools: list[ChatCompletionToolParam] = Field(default_factory=list)
 
